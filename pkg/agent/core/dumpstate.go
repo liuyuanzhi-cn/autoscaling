@@ -17,8 +17,8 @@ func shallowCopy[T any](ptr *T) *T {
 	}
 }
 
-// UpdateStateDump provides introspection into the current values of the fields of UpdateState
-type UpdateStateDump struct {
+// StateDump provides introspection into the current values of the fields of State
+type StateDump struct {
 	Config    Config             `json:"config"`
 	VM        api.VmInfo         `json:"vm"`
 	Plugin    pluginStateDump    `json:"plugin"`
@@ -27,12 +27,12 @@ type UpdateStateDump struct {
 	Metrics   *api.Metrics       `json:"metrics"`
 }
 
-// Dump produces a JSON-serializable representation of the UpdateState
-func (s *State) Dump() UpdateStateDump {
+// Dump produces a JSON-serializable representation of the State
+func (s *State) Dump() StateDump {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return UpdateStateDump{
+	return StateDump{
 		Config:    s.config,
 		VM:        s.vm,
 		Plugin:    s.plugin.dump(),
