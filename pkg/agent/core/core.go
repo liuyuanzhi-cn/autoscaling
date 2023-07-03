@@ -342,14 +342,7 @@ func (s *State) NextActions(now time.Time) ActionSet {
 				requiredWait = util.Min(requiredWait, wait)
 			}
 		}
-
-		// if (wantInformantDownscaleRequest || wantInformantUpscaleRequest) && s.informant.
 	}
-
-	// For the vm-informant: if we wanted to make a downscale request, but we previously got denied
-	// for that amount, we should wait for s.config.InformantDownscaleCooldown before retrying.
-	// Otherwise, if our last request *failed*, we should wait to retry.
-	// if
 
 	// If we're waiting on anything, add the action.
 	if requiredWait != maximumDuration {
