@@ -599,12 +599,12 @@ func (h InformantHandle) SuccessfullyRegistered() {
 	h.s.updateSignal.Send()
 }
 
-func (h InformantHandle) UpscaleRequested(resources api.MoreResources) {
+func (h InformantHandle) UpscaleRequested(now time.Time, resources api.MoreResources) {
 	h.s.mu.Lock()
 	defer h.s.mu.Unlock()
 
 	h.s.informant.requestedUpscale = &requestedUpscale{
-		at:        time.Now(),
+		at:        now,
 		base:      h.s.vm.Using(), // TODO: this is racy (maybe the resources were different when the informant originally made the request)
 		requested: resources,
 	}
