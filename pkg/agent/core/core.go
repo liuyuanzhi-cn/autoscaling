@@ -166,19 +166,13 @@ func NewState(vm api.VmInfo, config Config, notifyUpdates util.CondChannelSender
 	}
 }
 
-// Next is used to implement the state machine. Next is a pure function that *just* indicates what
-// the executor should do.
-func (s *State) NextAction(now time.Time) Action {
+// NextActions is used to implement the state machine. It's a pure function that *just* indicates
+// what the executor should do.
+func (s *State) NextActions(now time.Time) ActionSet {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Some guiding principles:
-	//
-	// Broadly this function is structured like a series of "if this condition, return this action".
-	//
-	// There's certain sequences we want to be high priority, like responding to a requested
-	// scale-up. In order to make them high-priority, we arrange certain steps earlier in the
-	// function.
+	var actions ActionSet
 
 	desiredResources := s.desiredResourcesFromMetricsOrRequestedUpscaling()
 	using := s.vm.Using()
@@ -216,18 +210,18 @@ func (s *State) NextAction(now time.Time) Action {
 		if !shouldUpdatePlugin {
 			// If we shouldn't "update" the plugin, then just inform it about the current resources
 			// and metrics.
-			return Action{PluginRequest: &ActionPluginRequest{
+			actions.PluginRequest = &ActionPluginRequest{
 				RequiresRequestLock: false,
 				Resources:           using,
 				Metrics:             s.metrics,
-			}}
+			}
 		} else {
 			// ... Otherwise, we should try requesting something new form it.
-			return Action{PluginRequest: &ActionPluginRequest{
+			actions.PluginRequest = &ActionPluginRequest{
 				RequiresRequestLock: true, // true because this request is not just a heartbeat
 				Resources:           desiredResourcesApprovedByInformant,
 				Metrics:             s.metrics,
-			}}
+			}
 		}
 	} else if timeForNewPluginRequest || shouldUpdatePlugin {
 		s.config.Warn("Wanted to make a request to the plugin, but there's already one ongoing")
@@ -239,7 +233,7 @@ func (s *State) NextAction(now time.Time) Action {
 		// ... but we can't make one if there's already a request ongoing, either via the NeonVM API
 		// or to the scheduler plugin, because they require taking out the request lock.
 		if !ongoingNeonVMRequest && !s.plugin.ongoingRequest {
-			return Action{NeonVMRequest: &ActionNeonVMRequest{Resources: approvedDesiredResources}}
+			actions.NeonVMRequest = &ActionNeonVMRequest{Resources: approvedDesiredResources}
 		} else {
 			// prefer displaying there's a NeonVM request if there is one
 			reqType := "plugin"
@@ -261,9 +255,9 @@ func (s *State) NextAction(now time.Time) Action {
 			now.Sub(*s.informant.upscaleFailureAt) >= s.config.InformantRetryWait)
 	if wantInformantUpscaleRequest {
 		if makeInformantUpscaleRequest {
-			return Action{InformantUpscale: &ActionInformantUpscale{
+			actions.InformantUpscale = &ActionInformantUpscale{
 				Resources: desiredResources.Max(*s.informant.approved),
-			}}
+			}
 		} else if s.informant.ongoingRequest {
 			s.config.Warn("Wanted to send informant downscale request, but waiting on other ongoing request")
 		} else {
@@ -294,9 +288,9 @@ func (s *State) NextAction(now time.Time) Action {
 
 	if wantInformantDownscaleRequest {
 		if makeInformantDownscaleRequest {
-			return Action{InformantDownscale: &ActionInformantDownscale{
+			actions.InformantDownscale = &ActionInformantDownscale{
 				Target: resourcesForInformantDownscale,
-			}}
+			}
 		} else if s.informant.ongoingRequest {
 			s.config.Warn("Wanted to send informant downscale request, but waiting on other ongoing request")
 		} else {
@@ -306,25 +300,22 @@ func (s *State) NextAction(now time.Time) Action {
 
 	// --- and that's all the request types! ---
 
-	// If there's nothing else to do, wait until it's next time to send a message.
+	// If there's anything waiting, we should also note how long we should wait for.
 	// There's two components we could be waiting on: the scheduler plugin, and the vm-informant.
-	//
-	// We always need to periodically send messages to the plugin. For it, we know that either:
+	maximumDuration := time.Duration(int64(uint64(1)<<63 - 1))
+	requiredWait := maximumDuration
+
+	// We always need to periodically send messages to the plugin. If actions.PluginRequest == nil,
+	// we know that either:
 	//
 	//   (a) s.plugin.lastRequestAt != nil (otherwise timeForNewPluginRequest == true); or
 	//   (b) s.plugin.ongoingRequest == true (the only reason why we wouldn't've exited earlier)
 	//
-	// So if there's an ongoing request, we'll be notified anyways when it's done. Just to pick a
-	// number (and help guard against stalling), we'll wait for the typical duration between plugin
-	// requests if there's already a request ongoing
-	var waitRequiredForPlugin time.Duration
-	if s.plugin.ongoingRequest {
-		waitRequiredForPlugin = s.config.PluginRequestTick
-	} else {
-		waitRequiredForPlugin = now.Sub(s.plugin.lastRequest.at)
+	// So we actually only need to explicitly wait if there's not an ongoing request - otherwise
+	// we'll be notified anyways when the request is done.
+	if actions.PluginRequest == nil && !s.plugin.ongoingRequest {
+		requiredWait = util.Min(requiredWait, now.Sub(s.plugin.lastRequest.at))
 	}
-
-	requiredWait := waitRequiredForPlugin
 
 	// For the vm-informant:
 	// if we wanted to make EITHER a downscale or upscale request, but we previously couldn't
@@ -360,7 +351,16 @@ func (s *State) NextAction(now time.Time) Action {
 	// Otherwise, if our last request *failed*, we should wait to retry.
 	// if
 
-	return Action{Wait: &ActionWait{Duration: requiredWait}}
+	// If we're waiting on anything, add the action.
+	if requiredWait != maximumDuration {
+		actions.Wait = &ActionWait{Duration: requiredWait}
+	}
+
+	if err := actions.Validate(); err != nil {
+		panic(fmt.Errorf("generated invalid ActionSet: %w", err))
+	}
+
+	return actions
 }
 
 func (s *State) scalingConfig() api.ScalingConfig {
