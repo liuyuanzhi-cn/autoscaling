@@ -41,7 +41,7 @@ type ActionInformantUpscale struct {
 }
 
 // Valid checks that the Action is valid. Currently, that exactly one field is set
-func (a Action) Valid() error {
+func (a Action) Validate() error {
 	fieldCount := 0
 	if a.Wait != nil {
 		fieldCount += 1
