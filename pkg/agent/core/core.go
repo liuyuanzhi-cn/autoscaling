@@ -168,11 +168,9 @@ func NewState(vm api.VmInfo, config Config, notifyUpdates util.CondChannelSender
 
 // Next is used to implement the state machine. Next is a pure function that *just* indicates what
 // the executor should do.
-func (s *State) NextAction() Action {
+func (s *State) NextAction(now time.Time) Action {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	now := time.Now()
 
 	// Some guiding principles:
 	//
