@@ -39,18 +39,3 @@ type ActionInformantDownscale struct {
 type ActionInformantUpscale struct {
 	Resources api.Resources `json:"resources"`
 }
-
-// Valid checks that the Action is valid. Currently, that at least one field is set
-func (a ActionSet) Validate() error {
-	hasField := a.Wait != nil ||
-		a.PluginRequest != nil ||
-		a.NeonVMRequest != nil ||
-		a.InformantDownscale != nil ||
-		a.InformantUpscale != nil
-
-	if !hasField {
-		return errors.New("No fields set")
-	}
-
-	return nil
-}

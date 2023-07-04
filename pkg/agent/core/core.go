@@ -346,10 +346,6 @@ func (s *State) NextActions(now time.Time) ActionSet {
 		actions.Wait = &ActionWait{Duration: requiredWait}
 	}
 
-	if err := actions.Validate(); err != nil {
-		panic(fmt.Errorf("generated invalid ActionSet: %w", err))
-	}
-
 	return actions
 }
 
