@@ -59,8 +59,6 @@ type State struct {
 
 	mu sync.Mutex
 
-	updateSignal util.CondChannelSender
-
 	config Config
 
 	// vm gives the current state of the VM - or at least, the state of the fields we care about.
@@ -139,10 +137,9 @@ type neonvmState struct {
 
 func NewState(vm api.VmInfo, config Config, notifyUpdates util.CondChannelSender) *State {
 	return &State{
-		mu:           sync.Mutex{},
-		updateSignal: notifyUpdates,
-		config:       config,
-		vm:           vm,
+		mu:     sync.Mutex{},
+		config: config,
+		vm:     vm,
 		plugin: pluginState{
 			ongoingRequest: false,
 			computeUnit:    nil,
@@ -480,7 +477,6 @@ func (s *State) UpdatedVM(vm api.VmInfo) {
 	defer s.mu.Unlock()
 
 	s.vm = vm
-	s.updateSignal.Send()
 }
 
 // PluginHandle provides write access to the scheduler plugin pieces of an UpdateState
@@ -502,7 +498,6 @@ func (h PluginHandle) NewScheduler() {
 		lastRequest:    nil,
 		permit:         h.s.plugin.permit, // Keep this; trust the previous scheduler.
 	}
-	h.s.updateSignal.Send()
 }
 
 func (h PluginHandle) StartingRequest(now time.Time, resources api.Resources) {
@@ -514,7 +509,6 @@ func (h PluginHandle) StartingRequest(now time.Time, resources api.Resources) {
 		resources: resources,
 	}
 	h.s.plugin.ongoingRequest = true
-	h.s.updateSignal.Send()
 }
 
 func (h PluginHandle) RequestFailed() {
@@ -522,7 +516,6 @@ func (h PluginHandle) RequestFailed() {
 	defer h.s.mu.Unlock()
 
 	h.s.plugin.ongoingRequest = false
-	h.s.updateSignal.Send()
 }
 
 func (h *PluginHandle) ReceivedResponse(resp api.PluginResponse) error {
@@ -530,7 +523,6 @@ func (h *PluginHandle) ReceivedResponse(resp api.PluginResponse) error {
 	defer h.s.mu.Unlock()
 
 	h.s.plugin.ongoingRequest = false
-	h.s.updateSignal.Send()
 
 	if err := resp.Permit.ValidateNonZero(); err != nil {
 		return fmt.Errorf("Invalid permit: %w", err)
@@ -580,7 +572,6 @@ func (h InformantHandle) Reset() {
 		downscaleFailureAt: nil,
 		upscaleFailureAt:   nil,
 	}
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) SuccessfullyRegistered() {
@@ -589,7 +580,6 @@ func (h InformantHandle) SuccessfullyRegistered() {
 
 	using := h.s.vm.Using()
 	h.s.informant.approved = &using // TODO: this is racy (although... informant synchronization should help *some* with this?)
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) UpscaleRequested(now time.Time, resources api.MoreResources) {
@@ -601,7 +591,6 @@ func (h InformantHandle) UpscaleRequested(now time.Time, resources api.MoreResou
 		base:      h.s.vm.Using(), // TODO: this is racy (maybe the resources were different when the informant originally made the request)
 		requested: resources,
 	}
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) StartingUpscaleRequest() {
@@ -610,7 +599,6 @@ func (h InformantHandle) StartingUpscaleRequest() {
 
 	h.s.informant.ongoingRequest = true
 	h.s.informant.upscaleFailureAt = nil
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) UpscaleRequestSuccess(resources api.Resources) {
@@ -619,7 +607,6 @@ func (h InformantHandle) UpscaleRequestSuccess(resources api.Resources) {
 
 	h.s.informant.ongoingRequest = false
 	h.s.informant.approved = &resources
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) UpscaleRequestFailed(now time.Time) {
@@ -628,7 +615,6 @@ func (h InformantHandle) UpscaleRequestFailed(now time.Time) {
 
 	h.s.informant.ongoingRequest = false
 	h.s.informant.upscaleFailureAt = &now
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) StartingDownscaleRequest() {
@@ -637,7 +623,6 @@ func (h InformantHandle) StartingDownscaleRequest() {
 
 	h.s.informant.ongoingRequest = true
 	h.s.informant.downscaleFailureAt = nil
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) DownscaleRequestAllowed(requested api.Resources) {
@@ -647,7 +632,6 @@ func (h InformantHandle) DownscaleRequestAllowed(requested api.Resources) {
 	h.s.informant.ongoingRequest = false
 	h.s.informant.approved = &requested
 	h.s.informant.deniedDownscale = nil
-	h.s.updateSignal.Send()
 }
 
 // Downscale request was successful but the informant denied our request.
@@ -659,7 +643,6 @@ func (h InformantHandle) DownscaleRequestDenied(now time.Time, requested api.Res
 		at:        now,
 		requested: requested,
 	}
-	h.s.updateSignal.Send()
 }
 
 func (h InformantHandle) DownscaleRequestFailed(now time.Time) {
@@ -668,7 +651,6 @@ func (h InformantHandle) DownscaleRequestFailed(now time.Time) {
 
 	h.s.informant.ongoingRequest = false
 	h.s.informant.downscaleFailureAt = &now
-	h.s.updateSignal.Send()
 }
 
 type NeonVMHandle struct {
@@ -684,7 +666,6 @@ func (h NeonVMHandle) StartingRequest(resources api.Resources) {
 	defer h.s.mu.Unlock()
 
 	h.s.neonvm.ongoingRequested = &resources
-	h.s.updateSignal.Send()
 }
 
 func (h NeonVMHandle) RequestSuccessful() {
@@ -702,7 +683,6 @@ func (h NeonVMHandle) RequestSuccessful() {
 	// necessary changes.
 	h.s.vm.Cpu.Use = resources.VCPU
 	h.s.vm.Mem.Use = resources.Mem
-	h.s.updateSignal.Send()
 }
 
 func (h NeonVMHandle) RequestFailed() {
@@ -710,5 +690,4 @@ func (h NeonVMHandle) RequestFailed() {
 	defer h.s.mu.Unlock()
 
 	h.s.neonvm.ongoingRequested = nil
-	h.s.updateSignal.Send()
 }
