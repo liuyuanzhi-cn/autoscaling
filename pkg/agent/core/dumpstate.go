@@ -29,9 +29,6 @@ type StateDump struct {
 
 // Dump produces a JSON-serializable representation of the State
 func (s *State) Dump() StateDump {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	return StateDump{
 		Config:    s.config,
 		VM:        s.vm,

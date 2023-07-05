@@ -23,7 +23,6 @@ package core
 import (
 	"fmt"
 	"math"
-	"sync"
 	"time"
 
 	"github.com/neondatabase/autoscaling/pkg/api"
@@ -56,8 +55,6 @@ type Config struct {
 // decisions
 type State struct {
 	// ANY CHANGED FIELDS MUST BE UPDATED IN dump.go AS WELL
-
-	mu sync.Mutex
 
 	config Config
 
@@ -137,7 +134,6 @@ type neonvmState struct {
 
 func NewState(vm api.VmInfo, config Config, notifyUpdates util.CondChannelSender) *State {
 	return &State{
-		mu:     sync.Mutex{},
 		config: config,
 		vm:     vm,
 		plugin: pluginState{
@@ -166,9 +162,6 @@ func NewState(vm api.VmInfo, config Config, notifyUpdates util.CondChannelSender
 // NextActions is used to implement the state machine. It's a pure function that *just* indicates
 // what the executor should do.
 func (s *State) NextActions(now time.Time) ActionSet {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	var actions ActionSet
 
 	desiredResources := s.desiredResourcesFromMetricsOrRequestedUpscaling()
@@ -469,9 +462,6 @@ func (s *State) boundResourcesByPluginApproved(resources api.Resources) api.Reso
 //////////////////////////////////////////
 
 func (s *State) UpdatedVM(vm api.VmInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.vm = vm
 }
 
@@ -485,9 +475,6 @@ func (s *State) Plugin() PluginHandle {
 }
 
 func (h PluginHandle) NewScheduler() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.plugin = pluginState{
 		ongoingRequest: false,
 		computeUnit:    nil,
@@ -497,9 +484,6 @@ func (h PluginHandle) NewScheduler() {
 }
 
 func (h PluginHandle) StartingRequest(now time.Time, resources api.Resources) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.plugin.lastRequest = &pluginRequested{
 		at:        now,
 		resources: resources,
@@ -508,16 +492,10 @@ func (h PluginHandle) StartingRequest(now time.Time, resources api.Resources) {
 }
 
 func (h PluginHandle) RequestFailed() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.plugin.ongoingRequest = false
 }
 
 func (h *PluginHandle) ReceivedResponse(resp api.PluginResponse) error {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.plugin.ongoingRequest = false
 
 	if err := resp.Permit.ValidateNonZero(); err != nil {
@@ -557,9 +535,6 @@ func (s *State) Informant() InformantHandle {
 }
 
 func (h InformantHandle) Reset() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant = informantState{
 		ongoingRequest:     false,
 		requestedUpscale:   nil,
@@ -571,17 +546,11 @@ func (h InformantHandle) Reset() {
 }
 
 func (h InformantHandle) SuccessfullyRegistered() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	using := h.s.vm.Using()
 	h.s.informant.approved = &using // TODO: this is racy (although... informant synchronization should help *some* with this?)
 }
 
 func (h InformantHandle) UpscaleRequested(now time.Time, resources api.MoreResources) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.requestedUpscale = &requestedUpscale{
 		at:        now,
 		base:      h.s.vm.Using(), // TODO: this is racy (maybe the resources were different when the informant originally made the request)
@@ -590,41 +559,26 @@ func (h InformantHandle) UpscaleRequested(now time.Time, resources api.MoreResou
 }
 
 func (h InformantHandle) StartingUpscaleRequest() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.ongoingRequest = true
 	h.s.informant.upscaleFailureAt = nil
 }
 
 func (h InformantHandle) UpscaleRequestSuccess(resources api.Resources) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.ongoingRequest = false
 	h.s.informant.approved = &resources
 }
 
 func (h InformantHandle) UpscaleRequestFailed(now time.Time) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.ongoingRequest = false
 	h.s.informant.upscaleFailureAt = &now
 }
 
 func (h InformantHandle) StartingDownscaleRequest() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.ongoingRequest = true
 	h.s.informant.downscaleFailureAt = nil
 }
 
 func (h InformantHandle) DownscaleRequestAllowed(requested api.Resources) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.ongoingRequest = false
 	h.s.informant.approved = &requested
 	h.s.informant.deniedDownscale = nil
@@ -632,9 +586,6 @@ func (h InformantHandle) DownscaleRequestAllowed(requested api.Resources) {
 
 // Downscale request was successful but the informant denied our request.
 func (h InformantHandle) DownscaleRequestDenied(now time.Time, requested api.Resources) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.deniedDownscale = &deniedDownscale{
 		at:        now,
 		requested: requested,
@@ -642,9 +593,6 @@ func (h InformantHandle) DownscaleRequestDenied(now time.Time, requested api.Res
 }
 
 func (h InformantHandle) DownscaleRequestFailed(now time.Time) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.informant.ongoingRequest = false
 	h.s.informant.downscaleFailureAt = &now
 }
@@ -658,16 +606,10 @@ func (s *State) NeonVM() NeonVMHandle {
 }
 
 func (h NeonVMHandle) StartingRequest(resources api.Resources) {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.neonvm.ongoingRequested = &resources
 }
 
 func (h NeonVMHandle) RequestSuccessful() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	if h.s.neonvm.ongoingRequested == nil {
 		panic("received NeonVM().RequestSuccessful() update without ongoing request")
 	}
@@ -682,8 +624,5 @@ func (h NeonVMHandle) RequestSuccessful() {
 }
 
 func (h NeonVMHandle) RequestFailed() {
-	h.s.mu.Lock()
-	defer h.s.mu.Unlock()
-
 	h.s.neonvm.ongoingRequested = nil
 }
