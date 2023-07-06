@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"time"
 
 	"github.com/neondatabase/autoscaling/pkg/api"
