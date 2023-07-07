@@ -495,7 +495,7 @@ func (h PluginHandle) RequestFailed() {
 	h.s.plugin.ongoingRequest = false
 }
 
-func (h *PluginHandle) ReceivedResponse(resp api.PluginResponse) error {
+func (h PluginHandle) RequestSuccessful(resp api.PluginResponse) error {
 	h.s.plugin.ongoingRequest = false
 
 	if err := resp.Permit.ValidateNonZero(); err != nil {
@@ -563,7 +563,7 @@ func (h InformantHandle) StartingUpscaleRequest() {
 	h.s.informant.upscaleFailureAt = nil
 }
 
-func (h InformantHandle) UpscaleRequestSuccess(resources api.Resources) {
+func (h InformantHandle) UpscaleRequestSuccessful(resources api.Resources) {
 	h.s.informant.ongoingRequest = false
 	h.s.informant.approved = &resources
 }
