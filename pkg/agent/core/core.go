@@ -201,16 +201,14 @@ func (s *State) NextActions(now time.Time) ActionSet {
 			// If we shouldn't "update" the plugin, then just inform it about the current resources
 			// and metrics.
 			actions.PluginRequest = &ActionPluginRequest{
-				RequiresRequestLock: false,
-				Resources:           using,
-				Metrics:             s.metrics,
+				Resources: using,
+				Metrics:   s.metrics,
 			}
 		} else {
 			// ... Otherwise, we should try requesting something new form it.
 			actions.PluginRequest = &ActionPluginRequest{
-				RequiresRequestLock: true, // true because this request is not just a heartbeat
-				Resources:           desiredResourcesApprovedByInformant,
-				Metrics:             s.metrics,
+				Resources: desiredResourcesApprovedByInformant,
+				Metrics:   s.metrics,
 			}
 		}
 	} else if timeForNewPluginRequest || shouldUpdatePlugin {

@@ -19,10 +19,6 @@ type ActionWait struct {
 }
 
 type ActionPluginRequest struct {
-	// FIXME: We should remove this. It's a lot of extra complication that no longer serves a
-	// purpose.
-	RequiresRequestLock bool `json:"requiresRequestLock"`
-
 	Resources api.Resources `json:"resources"`
 	Metrics   *api.Metrics  `json:"metrics"`
 }
