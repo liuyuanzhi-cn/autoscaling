@@ -132,7 +132,7 @@ type neonvmState struct {
 	requestFailedAt  *time.Time
 }
 
-func NewState(vm api.VmInfo, config Config, notifyUpdates util.CondChannelSender) *State {
+func NewState(vm api.VmInfo, config Config) *State {
 	return &State{
 		config: config,
 		vm:     vm,
@@ -603,7 +603,8 @@ func (s *State) NeonVM() NeonVMHandle {
 	return NeonVMHandle{s}
 }
 
-func (h NeonVMHandle) StartingRequest(resources api.Resources) {
+func (h NeonVMHandle) StartingRequest(now time.Time, resources api.Resources) {
+	// FIXME: add time to ongoing request info (or maybe only in RequestFailed?)
 	h.s.neonvm.ongoingRequested = &resources
 }
 
