@@ -19,18 +19,22 @@ type ActionWait struct {
 }
 
 type ActionPluginRequest struct {
-	Resources api.Resources `json:"resources"`
-	Metrics   *api.Metrics  `json:"metrics"`
+	LastPermit *api.Resources `json:"current"`
+	Target     api.Resources  `json:"target"`
+	Metrics    *api.Metrics   `json:"metrics"`
 }
 
 type ActionNeonVMRequest struct {
-	Resources api.Resources `json:"resources"`
+	Current api.Resources `json:"current"`
+	Target  api.Resources `json:"target"`
 }
 
 type ActionInformantDownscale struct {
-	Target api.Resources `json:"target"`
+	Current api.Resources `json:"current"`
+	Target  api.Resources `json:"target"`
 }
 
 type ActionInformantUpscale struct {
-	Resources api.Resources `json:"resources"`
+	Current api.Resources `json:"current"`
+	Target  api.Resources `json:"target"`
 }

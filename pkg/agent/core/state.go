@@ -201,14 +201,16 @@ func (s *State) NextActions(now time.Time) ActionSet {
 			// If we shouldn't "update" the plugin, then just inform it about the current resources
 			// and metrics.
 			actions.PluginRequest = &ActionPluginRequest{
-				Resources: using,
-				Metrics:   s.metrics,
+				LastPermit: s.plugin.permit,
+				Target:     using,
+				Metrics:    s.metrics,
 			}
 		} else {
 			// ... Otherwise, we should try requesting something new form it.
 			actions.PluginRequest = &ActionPluginRequest{
-				Resources: desiredResourcesApprovedByInformant,
-				Metrics:   s.metrics,
+				LastPermit: s.plugin.permit,
+				Target:     desiredResourcesApprovedByInformant,
+				Metrics:    s.metrics,
 			}
 		}
 	} else if timeForNewPluginRequest || shouldUpdatePlugin {
@@ -221,7 +223,10 @@ func (s *State) NextActions(now time.Time) ActionSet {
 		// ... but we can't make one if there's already a request ongoing, either via the NeonVM API
 		// or to the scheduler plugin, because they require taking out the request lock.
 		if !ongoingNeonVMRequest && !s.plugin.ongoingRequest {
-			actions.NeonVMRequest = &ActionNeonVMRequest{Resources: approvedDesiredResources}
+			actions.NeonVMRequest = &ActionNeonVMRequest{
+				Current: using,
+				Target:  approvedDesiredResources,
+			}
 		} else {
 			// prefer displaying there's a NeonVM request if there is one
 			reqType := "plugin"
@@ -244,7 +249,8 @@ func (s *State) NextActions(now time.Time) ActionSet {
 	if wantInformantUpscaleRequest {
 		if makeInformantUpscaleRequest {
 			actions.InformantUpscale = &ActionInformantUpscale{
-				Resources: desiredResources.Max(*s.informant.approved),
+				Current: *s.informant.approved,
+				Target:  desiredResources.Max(*s.informant.approved),
 			}
 		} else if s.informant.ongoingRequest {
 			s.config.Warn("Wanted to send informant downscale request, but waiting on other ongoing request")

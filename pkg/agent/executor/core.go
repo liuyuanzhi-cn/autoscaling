@@ -150,7 +150,7 @@ type PluginInterface interface {
 }
 
 type PluginHandle interface {
-	Request(context.Context, api.Resources, *api.Metrics) (api.PluginResponse, error)
+	Request(_ context.Context, _ *zap.Logger, lastPermit *api.Resources, target api.Resources, _ *api.Metrics) (*api.PluginResponse, error)
 }
 
 func (c *ExecutorCoreWithClients) DoPluginRequests(ctx context.Context, logger *zap.Logger) {
@@ -158,6 +158,7 @@ func (c *ExecutorCoreWithClients) DoPluginRequests(ctx context.Context, logger *
 		updates     util.BroadcastReceiver   = c.updates.NewReceiver()
 		requestLock util.ChanMutex           = c.clients.Plugin.RequestLock()
 		newPlugin   util.CondChannelReceiver = c.clients.Plugin.NewPlugin()
+		ifaceLogger *zap.Logger              = logger.Named("client")
 	)
 
 	holdingRequestLock := false
@@ -231,7 +232,7 @@ func (c *ExecutorCoreWithClients) DoPluginRequests(ctx context.Context, logger *
 		var startTime time.Time
 		c.update(func(state *core.State) {
 			startTime = time.Now()
-			state.Plugin().StartingRequest(startTime, action.Resources)
+			state.Plugin().StartingRequest(startTime, action.Target)
 		})
 
 		if pluginIface == nil {
@@ -239,9 +240,10 @@ func (c *ExecutorCoreWithClients) DoPluginRequests(ctx context.Context, logger *
 				// FIXME: log error
 				state.Plugin().RequestFailed()
 			})
+			continue
 		}
 
-		resp, err := pluginIface.Request(ctx, action.Resources, action.Metrics)
+		resp, err := pluginIface.Request(ctx, ifaceLogger, action.LastPermit, action.Target, action.Metrics)
 		// endTime := time.Now()
 		c.update(func(state *core.State) {
 			if err != nil {
@@ -249,7 +251,7 @@ func (c *ExecutorCoreWithClients) DoPluginRequests(ctx context.Context, logger *
 				state.Plugin().RequestFailed()
 			} else {
 				// FIXME: log success
-				if err := state.Plugin().RequestSuccessful(resp); err != nil {
+				if err := state.Plugin().RequestSuccessful(*resp); err != nil {
 					// FIXME: log validation error
 				}
 			}
@@ -259,13 +261,14 @@ func (c *ExecutorCoreWithClients) DoPluginRequests(ctx context.Context, logger *
 
 type NeonVMInterface interface {
 	RequestLock() util.ChanMutex
-	Request(context.Context, api.Resources) error
+	Request(_ context.Context, _ *zap.Logger, current, target api.Resources) error
 }
 
 func (c *ExecutorCoreWithClients) DoNeonVMRequests(ctx context.Context, logger *zap.Logger) {
 	var (
 		updates     util.BroadcastReceiver = c.updates.NewReceiver()
 		requestLock util.ChanMutex         = c.clients.NeonVM.RequestLock()
+		ifaceLogger *zap.Logger            = logger.Named("client")
 	)
 
 	holdingRequestLock := false
@@ -318,10 +321,10 @@ func (c *ExecutorCoreWithClients) DoNeonVMRequests(ctx context.Context, logger *
 		var startTime time.Time
 		c.update(func(state *core.State) {
 			startTime = time.Now()
-			state.NeonVM().StartingRequest(startTime, action.Resources)
+			state.NeonVM().StartingRequest(startTime, action.Target)
 		})
 
-		err := c.clients.NeonVM.Request(ctx, action.Resources)
+		err := c.clients.NeonVM.Request(ctx, ifaceLogger, action.Current, action.Target)
 		c.update(func(state *core.State) {
 			if err != nil {
 				// FIXME: log error
@@ -337,14 +340,15 @@ func (c *ExecutorCoreWithClients) DoNeonVMRequests(ctx context.Context, logger *
 
 type InformantInterface interface {
 	RequestLock() util.ChanMutex
-	Downscale(context.Context, api.Resources) (*api.DownscaleResult, error)
-	Upscale(context.Context, api.Resources) error
+	Downscale(_ context.Context, _ *zap.Logger, current, target api.Resources) (*api.DownscaleResult, error)
+	Upscale(_ context.Context, _ *zap.Logger, current, target api.Resources) error
 }
 
 func (c *ExecutorCoreWithClients) DoInformantDownscales(ctx context.Context, logger *zap.Logger) {
 	var (
 		updates     util.BroadcastReceiver = c.updates.NewReceiver()
 		requestLock util.ChanMutex         = c.clients.Informant.RequestLock()
+		ifaceLogger *zap.Logger            = logger.Named("client")
 	)
 
 	holdingRequestLock := false
@@ -403,7 +407,7 @@ func (c *ExecutorCoreWithClients) DoInformantDownscales(ctx context.Context, log
 			state.Informant().StartingDownscaleRequest()
 		})
 
-		result, err := c.clients.Informant.Downscale(ctx, action.Target)
+		result, err := c.clients.Informant.Downscale(ctx, ifaceLogger, action.Current, action.Target)
 		endTime := time.Now()
 
 		c.update(func(state *core.State) {
@@ -429,6 +433,7 @@ func (c *ExecutorCoreWithClients) DoInformantUpscales(ctx context.Context, logge
 	var (
 		updates     util.BroadcastReceiver = c.updates.NewReceiver()
 		requestLock util.ChanMutex         = c.clients.Informant.RequestLock()
+		ifaceLogger *zap.Logger            = logger.Named("client")
 	)
 
 	holdingRequestLock := false
@@ -487,7 +492,7 @@ func (c *ExecutorCoreWithClients) DoInformantUpscales(ctx context.Context, logge
 			state.Informant().StartingDownscaleRequest()
 		})
 
-		err := c.clients.Informant.Upscale(ctx, action.Resources)
+		err := c.clients.Informant.Upscale(ctx, ifaceLogger, action.Current, action.Target)
 		endTime := time.Now()
 
 		c.update(func(state *core.State) {
@@ -498,7 +503,7 @@ func (c *ExecutorCoreWithClients) DoInformantUpscales(ctx context.Context, logge
 			}
 
 			// FIXME: log request success
-			state.Informant().UpscaleRequestSuccessful(action.Resources)
+			state.Informant().UpscaleRequestSuccessful(action.Target)
 		})
 	}
 }
