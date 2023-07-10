@@ -68,6 +68,7 @@ func (s *pluginState) dump() pluginStateDump {
 }
 
 type informantStateDump struct {
+	Active             bool                  `json:"active"`
 	OngoingRequest     bool                  `json:"ongoingRequest"`
 	RequestedUpscale   *requestedUpscaleDump `json:"requestedUpscale"`
 	DeniedDownscale    *deniedDownscaleDump  `json:"deniedDownscale"`
@@ -104,6 +105,7 @@ func (s *informantState) dump() informantStateDump {
 	}
 
 	return informantStateDump{
+		Active:             s.active,
 		OngoingRequest:     s.ongoingRequest,
 		RequestedUpscale:   requestedUpscale,
 		DeniedDownscale:    deniedDownscale,

@@ -97,6 +97,10 @@ type pluginRequested struct {
 }
 
 type informantState struct {
+	// active is true iff the agent is currently "confirmed" and not "suspended" by the informant.
+	// Otherwise, we shouldn't be making any kind of scaling requests.
+	active bool
+
 	ongoingRequest bool
 
 	// requestedUpscale, if not nil, stores the most recent *unresolved* upscaling requested by the
@@ -143,6 +147,7 @@ func NewState(vm api.VmInfo, config Config) *State {
 			permit:         nil,
 		},
 		informant: informantState{
+			active:             false,
 			ongoingRequest:     false,
 			requestedUpscale:   nil,
 			deniedDownscale:    nil,
@@ -164,8 +169,28 @@ func NewState(vm api.VmInfo, config Config) *State {
 func (s *State) NextActions(now time.Time) ActionSet {
 	var actions ActionSet
 
-	desiredResources := s.desiredResourcesFromMetricsOrRequestedUpscaling()
 	using := s.vm.Using()
+
+	var desiredResources api.Resources
+
+	if s.informant.active {
+		desiredResources = s.desiredResourcesFromMetricsOrRequestedUpscaling()
+	} else {
+		// If we're not deemed "active" by the informant, then we shouldn't be making any kind of
+		// scaling requests on its behalf.
+		//
+		// We'll still talk to the scheduler to inform it about the current resource usage though,
+		// to mitigate any reliability issues - much of the informant is built (as of 2023-07-09)
+		// under the assumption that we could, in theory, have multiple autoscaler-agents on the
+		// same node at the same time. That's... not really true, so an informant that isn't
+		// "active" is more likely to just be crash-looping due to a bug.
+		//
+		// *In theory* if we had mutliple autoscaler-agents talking to a single informant, this
+		// would be incorrect; we'd override another one's scaling requests. But this should be
+		// fine.
+		desiredResources = using
+	}
+
 	desiredResourcesApprovedByInformant := s.boundResourcesByInformantApproved(desiredResources)
 	desiredResourcesApprovedByPlugin := s.boundResourcesByPluginApproved(desiredResources)
 	// NB: informant approved provides a lower bound
@@ -243,6 +268,7 @@ func (s *State) NextActions(now time.Time) ActionSet {
 	wantInformantUpscaleRequest := s.informant.approved != nil && *s.informant.approved != desiredResources.Max(*s.informant.approved)
 	// However, we may need to wait before retrying (or for any ongoing requests to finish)
 	makeInformantUpscaleRequest := wantInformantUpscaleRequest &&
+		s.informant.active &&
 		!s.informant.ongoingRequest &&
 		(s.informant.upscaleFailureAt == nil ||
 			now.Sub(*s.informant.upscaleFailureAt) >= s.config.InformantRetryWait)
@@ -252,6 +278,8 @@ func (s *State) NextActions(now time.Time) ActionSet {
 				Current: *s.informant.approved,
 				Target:  desiredResources.Max(*s.informant.approved),
 			}
+		} else if !s.informant.active {
+			s.config.Warn("Wanted to send informant downscale request, but not active")
 		} else if s.informant.ongoingRequest {
 			s.config.Warn("Wanted to send informant downscale request, but waiting on other ongoing request")
 		} else {
@@ -273,6 +301,7 @@ func (s *State) NextActions(now time.Time) ActionSet {
 	}
 	// However, we may need to wait before retrying (or for any ongoing requests to finish)
 	makeInformantDownscaleRequest := wantInformantDownscaleRequest &&
+		s.informant.active &&
 		!s.informant.ongoingRequest &&
 		(s.informant.deniedDownscale == nil ||
 			s.informant.deniedDownscale.requested != desiredResources.Min(using) ||
@@ -285,6 +314,8 @@ func (s *State) NextActions(now time.Time) ActionSet {
 			actions.InformantDownscale = &ActionInformantDownscale{
 				Target: resourcesForInformantDownscale,
 			}
+		} else if !s.informant.active {
+			s.config.Warn("Wanted to send informant downscale request, but not active")
 		} else if s.informant.ongoingRequest {
 			s.config.Warn("Wanted to send informant downscale request, but waiting on other ongoing request")
 		} else {
@@ -540,6 +571,7 @@ func (s *State) Informant() InformantHandle {
 
 func (h InformantHandle) Reset() {
 	h.s.informant = informantState{
+		active:             false,
 		ongoingRequest:     false,
 		requestedUpscale:   nil,
 		deniedDownscale:    nil,
@@ -547,6 +579,14 @@ func (h InformantHandle) Reset() {
 		downscaleFailureAt: nil,
 		upscaleFailureAt:   nil,
 	}
+}
+
+func (h InformantHandle) Active() {
+	h.s.informant.active = true
+}
+
+func (h InformantHandle) Unactive() {
+	h.s.informant.active = false
 }
 
 func (h InformantHandle) SuccessfullyRegistered() {
