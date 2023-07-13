@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"log"
 	"net"
@@ -30,7 +31,7 @@ const (
 )
 
 var (
-	delete = flag.Bool("delete", false, `delete VXLAN interfaces`)
+	deleteArgPtr = flag.Bool("delete", false, `delete VXLAN interfaces`)
 )
 
 func main() {
@@ -49,7 +50,7 @@ func main() {
 	}
 
 	// -delete option used for teardown vxlan setup
-	if *delete {
+	if *deleteArgPtr {
 		log.Printf("deleting vxlan interface %s", VXLAN_IF_NAME)
 		if err := deleteLink(VXLAN_IF_NAME); err != nil {
 			log.Print(err)
@@ -125,7 +126,8 @@ func createBrigeInterface(name string) error {
 		log.Printf("link with name %s already found", name)
 		return nil
 	}
-	_, notFound := err.(netlink.LinkNotFoundError)
+	var linkNotFoundError netlink.LinkNotFoundError
+	notFound := errors.As(err, &linkNotFoundError)
 	if !notFound {
 		return err
 	}
@@ -154,7 +156,8 @@ func createVxlanInterface(name string, vxlanID int, ownIP string, bridgeName str
 		log.Printf("link with name %s already found", name)
 		return nil
 	}
-	_, notFound := err.(netlink.LinkNotFoundError)
+	var linkNotFoundError netlink.LinkNotFoundError
+	notFound := errors.As(err, &linkNotFoundError)
 	if !notFound {
 		return err
 	}
@@ -231,7 +234,8 @@ func deleteLink(name string) error {
 		log.Printf("link with name %s was deleted", name)
 		return nil
 	}
-	_, notFound := err.(netlink.LinkNotFoundError)
+	var linkNotFoundError netlink.LinkNotFoundError
+	notFound := errors.As(err, &linkNotFoundError)
 	if !notFound {
 		return err
 	}

@@ -612,7 +612,7 @@ func (r *VirtualMachineReconciler) doReconcile(ctx context.Context, virtualmachi
 			err := r.Get(ctx, types.NamespacedName{Name: virtualmachine.Status.PodName, Namespace: virtualmachine.Namespace}, vmRunner)
 			if err == nil {
 				// delete current runner
-				if err = r.Delete(ctx, vmRunner); err != nil {
+				if err := r.Delete(ctx, vmRunner); err != nil {
 					return err
 				}
 				r.Recorder.Event(virtualmachine, "Normal", "Deleted",
@@ -637,7 +637,7 @@ func (r *VirtualMachineReconciler) doReconcile(ctx context.Context, virtualmachi
 			// delete runner only when VM failed
 			if found && virtualmachine.Status.Phase == vmv1.VmFailed {
 				// delete current runner
-				if err = r.Delete(ctx, vmRunner); err != nil {
+				if err := r.Delete(ctx, vmRunner); err != nil {
 					return err
 				}
 				r.Recorder.Event(virtualmachine, "Normal", "Deleted",
@@ -903,6 +903,7 @@ func notifyRunner(ctx context.Context, vm *vmv1.VirtualMachine, cpu vmv1.MilliCP
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("unexpected status %s", resp.Status)
@@ -969,12 +970,12 @@ func podSpec(virtualmachine *vmv1.VirtualMachine) (*corev1.Pod, error) {
 
 	vmSpecJson, err := json.Marshal(virtualmachine.Spec)
 	if err != nil {
-		return nil, fmt.Errorf("marshal VM Spec: %s", err)
+		return nil, fmt.Errorf("marshal VM Spec: %w", err)
 	}
 
 	vmStatusJson, err := json.Marshal(virtualmachine.Status)
 	if err != nil {
-		return nil, fmt.Errorf("marshal VM Status: %s", err)
+		return nil, fmt.Errorf("marshal VM Status: %w", err)
 	}
 
 	pod := &corev1.Pod{

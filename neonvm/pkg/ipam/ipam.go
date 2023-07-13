@@ -3,6 +3,7 @@ package ipam
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -15,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -71,7 +72,7 @@ func New(ctx context.Context, nadName string, nadNamespace string) (*IPAM, error
 	// get Kubernetes client config
 	cfg, err := config.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error building kubernetes configuration: %v", err)
+		return nil, fmt.Errorf("error building kubernetes configuration: %w", err)
 	}
 
 	// tune Kubernetes client perfomance
@@ -80,7 +81,7 @@ func New(ctx context.Context, nadName string, nadNamespace string) (*IPAM, error
 
 	kClient, err := NewKubeClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error creating kubernetes client: %v", err)
+		return nil, fmt.Errorf("error creating kubernetes client: %w", err)
 	}
 
 	// read network-attachment-definition from Kubernetes
@@ -94,7 +95,7 @@ func New(ctx context.Context, nadName string, nadNamespace string) (*IPAM, error
 
 	ipamConfig, err := LoadFromNad(nad.Spec.Config, nadNamespace)
 	if err != nil {
-		return nil, fmt.Errorf("network-attachment-definition IPAM config parse error: %v", err)
+		return nil, fmt.Errorf("network-attachment-definition IPAM config parse error: %w", err)
 	}
 
 	return &IPAM{
@@ -107,7 +108,7 @@ func New(ctx context.Context, nadName string, nadNamespace string) (*IPAM, error
 func LoadFromNad(nadConfig string, nadNamespace string) (*IPAMConfig, error) {
 	var n Nad
 	if err := json.Unmarshal([]byte(nadConfig), &n); err != nil {
-		return nil, fmt.Errorf("json parsing error: %v", err)
+		return nil, fmt.Errorf("json parsing error: %w", err)
 	}
 
 	if n.IPAM == nil {
@@ -129,7 +130,7 @@ func LoadFromNad(nadConfig string, nadNamespace string) (*IPAMConfig, error) {
 	for idx := range n.IPAM.IPRanges {
 		firstip, ipNet, err := net.ParseCIDR(n.IPAM.IPRanges[idx].Range)
 		if err != nil {
-			return nil, fmt.Errorf("invalid CIDR %s: %v", n.IPAM.IPRanges[idx].Range, err)
+			return nil, fmt.Errorf("invalid CIDR %s: %w", n.IPAM.IPRanges[idx].Range, err)
 		}
 		n.IPAM.IPRanges[idx].Range = ipNet.String()
 		if n.IPAM.IPRanges[idx].RangeStart == nil {
@@ -158,7 +159,7 @@ func LoadFromNad(nadConfig string, nadNamespace string) (*IPAMConfig, error) {
 	for idx := range n.IPAM.OmitRanges {
 		_, _, err := net.ParseCIDR(n.IPAM.OmitRanges[idx])
 		if err != nil {
-			return nil, fmt.Errorf("invalid exclude CIDR %s: %v", n.IPAM.OmitRanges[idx], err)
+			return nil, fmt.Errorf("invalid exclude CIDR %s: %w", n.IPAM.OmitRanges[idx], err)
 		}
 	}
 
@@ -255,7 +256,7 @@ func (i *IPAM) runIPAM(ctx context.Context, vmName string, vmNamespace string, a
 
 	// Check connectivity to kubernetes
 	if err := i.Status(ctxWithTimeout); err != nil {
-		return ip, fmt.Errorf("connectivity error: %v", err)
+		return ip, fmt.Errorf("connectivity error: %w", err)
 	}
 
 	// handle the ip add/del until successful
@@ -274,12 +275,13 @@ func (i *IPAM) runIPAM(ctx context.Context, vmName string, vmNamespace string, a
 			// read IPPool from ipppols.vm.neon.tech custom resource
 			pool, err := i.getNeonvmIPPool(ctxWithTimeout, ipRange.Range)
 			if err != nil {
-				if e, ok := err.(Temporary); ok && e.Temporary() {
+				var temp Temporary
+				if errors.As(err, &temp) && temp.Temporary() {
 					// retry attempt to read IPPool
 					time.Sleep(DatastoreRetriesDelay)
 					continue
 				}
-				return ip, fmt.Errorf("error reading IP pool: %v", err)
+				return ip, fmt.Errorf("error reading IP pool: %w", err)
 			}
 
 			currentReservation := pool.Allocations(ctx)
@@ -302,12 +304,13 @@ func (i *IPAM) runIPAM(ctx context.Context, vmName string, vmNamespace string, a
 			// update IPPool with newReservation
 			err = pool.Update(ctxWithTimeout, newReservation)
 			if err != nil {
-				if e, ok := err.(Temporary); ok && e.Temporary() {
+				var temp Temporary
+				if errors.As(err, &temp) && temp.Temporary() {
 					// retry attempt to update IPPool
 					time.Sleep(DatastoreRetriesDelay)
 					continue
 				}
-				return ip, fmt.Errorf("error updating IP pool: %v", err)
+				return ip, fmt.Errorf("error updating IP pool: %w", err)
 			}
 			// pool was readed, acquire or release was processed, pool was updated
 			// now we can break retry loop
@@ -361,14 +364,14 @@ func (i *IPAM) getNeonvmIPPool(ctx context.Context, ipRange string) (NeonvmIPPoo
 	}
 
 	pool, err := i.vmClient.NeonvmV1().IPPools(i.Config.NetworkNamespace).Get(ctx, poolName, metav1.GetOptions{})
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		// pool does not exist, create it
 		newPool := &neonvmapiv1.IPPool{}
 		newPool.ObjectMeta.Name = poolName
 		newPool.Spec.Range = ipRange
 		newPool.Spec.Allocations = make(map[string]neonvmapiv1.IPAllocation)
 		_, err = i.vmClient.NeonvmV1().IPPools(i.Config.NetworkNamespace).Create(ctx, newPool, metav1.CreateOptions{})
-		if err != nil && errors.IsAlreadyExists(err) {
+		if err != nil && apierrors.IsAlreadyExists(err) {
 			// the pool was just created -- allow retry
 			return NeonvmIPPool{}, &temporaryError{err}
 		} else if err != nil {
@@ -397,7 +400,7 @@ func (p *NeonvmIPPool) Update(ctx context.Context, reservation []whereaboutstype
 	p.pool.Spec.Allocations = toAllocations(reservation, p.firstip)
 	_, err := p.vmClient.NeonvmV1().IPPools(p.pool.Namespace).Update(ctx, p.pool, metav1.UpdateOptions{})
 	if err != nil {
-		if errors.IsConflict(err) {
+		if apierrors.IsConflict(err) {
 			return &temporaryError{err}
 		}
 		return err

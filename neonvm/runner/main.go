@@ -826,8 +826,6 @@ func terminateQemuOnSigterm(ctx context.Context, qmpPort int32, wg *sync.WaitGro
 	}
 
 	log.Println("system_powerdown command sent to QEMU")
-
-	return
 }
 
 func calcIPs(cidr string) (net.IP, net.IP, net.IPMask, error) {

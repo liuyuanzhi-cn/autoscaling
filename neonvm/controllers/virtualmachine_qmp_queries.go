@@ -184,7 +184,7 @@ func QmpPlugCpu(virtualmachine *vmv1.VirtualMachine) error {
 
 	// empty list reversed, first cpu slot in the end of list and last cpu slot in the beginning
 	slot := empty[len(empty)-1]
-	qmpcmd := []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "cpu%d", "driver": "%s", "core-id": %d, "socket-id": 0,  "thread-id": 0}}`, slot.Core, slot.Type, slot.Core))
+	qmpcmd := []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "cpu%d", "driver": "%q", "core-id": %d, "socket-id": 0,  "thread-id": 0}}`, slot.Core, slot.Type, slot.Core))
 
 	_, err = mon.Run(qmpcmd)
 	if err != nil {
@@ -211,7 +211,7 @@ func QmpPlugCpuToRunner(ip string, port int32) error {
 
 	// empty list reversed, first cpu slot in the end of list and last cpu slot in the beginning
 	slot := empty[len(empty)-1]
-	qmpcmd := []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "cpu%d", "driver": "%s", "core-id": %d, "socket-id": 0,  "thread-id": 0}}`, slot.Core, slot.Type, slot.Core))
+	qmpcmd := []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "cpu%d", "driver": "%q", "core-id": %d, "socket-id": 0,  "thread-id": 0}}`, slot.Core, slot.Type, slot.Core))
 
 	_, err = mon.Run(qmpcmd)
 	if err != nil {
@@ -246,7 +246,7 @@ func QmpUnplugCpu(virtualmachine *vmv1.VirtualMachine) error {
 	}
 	defer mon.Disconnect()
 
-	cmd := []byte(fmt.Sprintf(`{"execute": "device_del", "arguments": {"id": "%s"}}`, plugged[slot].QOM))
+	cmd := []byte(fmt.Sprintf(`{"execute": "device_del", "arguments": {"id": "%q"}}`, plugged[slot].QOM))
 	_, err = mon.Run(cmd)
 	if err != nil {
 		return err
@@ -287,7 +287,7 @@ searchForEmpty:
 				continue searchForEmpty
 			}
 		}
-		qmpcmd := []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "cpu%d", "driver": "%s", "core-id": %d, "socket-id": 0,  "thread-id": 0}}`, slot.Core, slot.Type, slot.Core))
+		qmpcmd := []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "cpu%d", "driver": "%q", "core-id": %d, "socket-id": 0,  "thread-id": 0}}`, slot.Core, slot.Type, slot.Core))
 		_, err = target.Run(qmpcmd)
 		if err != nil {
 			return err
@@ -413,17 +413,17 @@ func QmpSyncMemoryToTarget(vm *vmv1.VirtualMachine, migration *vmv1.VirtualMachi
 		}
 		// add memdev object
 		memdevId := strings.ReplaceAll(m.Data.Memdev, "/objects/", "")
-		cmd := []byte(fmt.Sprintf(`{"execute": "object-add", "arguments": {"id": "%s", "size": %d, "qom-type": "memory-backend-ram"}}`, memdevId, m.Data.Size))
+		cmd := []byte(fmt.Sprintf(`{"execute": "object-add", "arguments": {"id": "%q", "size": %d, "qom-type": "memory-backend-ram"}}`, memdevId, m.Data.Size))
 		_, err = target.Run(cmd)
 		if err != nil {
 			return err
 		}
 		// now add pc-dimm device
-		cmd = []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "%s", "driver": "pc-dimm", "memdev": "%s"}}`, m.Data.Id, memdevId))
+		cmd = []byte(fmt.Sprintf(`{"execute": "device_add", "arguments": {"id": "%q", "driver": "pc-dimm", "memdev": "%q"}}`, m.Data.Id, memdevId))
 		_, err = target.Run(cmd)
 		if err != nil {
 			// device_add command failed... so try remove object that we just created
-			cmd = []byte(fmt.Sprintf(`{"execute": "object-del", "arguments": {"id": "%s"}}`, m.Data.Memdev))
+			cmd = []byte(fmt.Sprintf(`{"execute": "object-del", "arguments": {"id": "%q"}}`, m.Data.Memdev))
 			target.Run(cmd)
 			return err
 		}
@@ -491,7 +491,7 @@ func QmpUnplugMemory(virtualmachine *vmv1.VirtualMachine) error {
 	var merr error
 	for i = plugged - 1; i >= 0; i-- {
 		// remove pc-dimm device
-		cmd := []byte(fmt.Sprintf(`{"execute": "device_del", "arguments": {"id": "%s"}}`, memoryDevices[i].Data.Id))
+		cmd := []byte(fmt.Sprintf(`{"execute": "device_del", "arguments": {"id": "%q"}}`, memoryDevices[i].Data.Id))
 		_, err = mon.Run(cmd)
 		if err != nil {
 			merr = errors.Join(merr, err)
@@ -501,7 +501,7 @@ func QmpUnplugMemory(virtualmachine *vmv1.VirtualMachine) error {
 		time.Sleep(time.Second)
 
 		// remove corresponding memdev object
-		cmd = []byte(fmt.Sprintf(`{"execute": "object-del", "arguments": {"id": "%s"}}`, strings.ReplaceAll(memoryDevices[i].Data.Memdev, "/objects/", "")))
+		cmd = []byte(fmt.Sprintf(`{"execute": "object-del", "arguments": {"id": "%q"}}`, strings.ReplaceAll(memoryDevices[i].Data.Memdev, "/objects/", "")))
 		_, err = mon.Run(cmd)
 		if err != nil {
 			merr = errors.Join(merr, err)
