@@ -277,7 +277,7 @@ const (
 )
 
 type Disk struct {
-	//Disk's name.
+	// Disk's name.
 	// Must be a DNS_LABEL and unique within the virtual machine.
 	Name string `json:"name"`
 	// Mounted read-only if true, read-write otherwise (false or unspecified).

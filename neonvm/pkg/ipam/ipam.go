@@ -10,18 +10,18 @@ import (
 	"sync"
 	"time"
 
+	whereaboutsallocate "github.com/k8snetworkplumbingwg/whereabouts/pkg/allocate"
+	whereaboutstypes "github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	neonvmapiv1 "github.com/neondatabase/autoscaling/neonvm/apis/neonvm/v1"
 	neonvm "github.com/neondatabase/autoscaling/neonvm/client/clientset/versioned"
-
-	whereaboutsallocate "github.com/k8snetworkplumbingwg/whereabouts/pkg/allocate"
-	whereaboutstypes "github.com/k8snetworkplumbingwg/whereabouts/pkg/types"
 )
 
 const (

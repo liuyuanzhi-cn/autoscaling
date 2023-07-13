@@ -1,25 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
-	"net/http"
-	"strconv"
-
-	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -36,9 +35,11 @@ import (
 	"github.com/kdomanski/iso9660"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/vishvananda/netlink"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	vmv1 "github.com/neondatabase/autoscaling/neonvm/apis/neonvm/v1"
+
 	"github.com/neondatabase/autoscaling/pkg/api"
 )
 

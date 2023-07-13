@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"go.uber.org/zap/zapcore"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"k8s.io/klog/v2"
 
 	"github.com/neondatabase/autoscaling/neonvm/pkg/ipam"
 )

@@ -566,7 +566,7 @@ func main() {
 	}
 
 	// do quiet build - discard output
-	//io.Copy(io.Discard, buildResp.Body)
+	// io.Copy(io.Discard, buildResp.Body)
 
 	if err = printReader(buildResp.Body); err != nil {
 		log.Fatalln(err)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/digitalocean/go-qemu/qmp"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	vmv1 "github.com/neondatabase/autoscaling/neonvm/apis/neonvm/v1"
