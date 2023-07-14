@@ -6,12 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"text/template"
 
 	"github.com/alessio/shellescape"
@@ -598,7 +598,7 @@ func main() {
 		tarReader := tar.NewReader(fromContainer)
 		for {
 			header, err := tarReader.Next()
-			if errors.Is(err, io.EOF) {
+			if err == io.EOF {
 				break
 			} else if err != nil {
 				log.Fatalln(err)
@@ -608,9 +608,10 @@ func main() {
 				log.Printf("skip file %s", header.Name)
 				continue
 			}
+			path := filepath.Join(*outFile)
 			info := header.FileInfo()
 
-			file, err := os.OpenFile(*outFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+			file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
 			if err != nil {
 				log.Fatalln(err)
 			}

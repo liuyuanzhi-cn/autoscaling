@@ -66,7 +66,7 @@ func main() {
 			if ip, err := ipam.AcquireIP(ctx, id, demoNamespace); err != nil {
 				logger.Error(err, "lease failed", "id", id)
 			} else {
-				logger.Info("acquired", "id", id, "ip", ip.String(), "acquired in", time.Since(startTime))
+				logger.Info("acquired", "id", id, "ip", ip.String(), "acquired in", time.Now().Sub(startTime))
 			}
 		}(i)
 		time.Sleep(time.Millisecond * 200)
@@ -84,7 +84,7 @@ func main() {
 			if ip, err := ipam.ReleaseIP(ctx, id, demoNamespace); err != nil {
 				logger.Error(err, "release failed", "id", id)
 			} else {
-				logger.Info("released", "id", id, "ip", ip.String(), "released in", time.Since(startTime))
+				logger.Info("released", "id", id, "ip", ip.String(), "released in", time.Now().Sub(startTime))
 			}
 		}(i)
 		time.Sleep(time.Millisecond * 200)
