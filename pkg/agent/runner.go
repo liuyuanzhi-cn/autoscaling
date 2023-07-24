@@ -209,7 +209,7 @@ type Scheduler struct {
 
 	// fatal is used for signalling that fatalError has been set (and so we should look for a new
 	// scheduler)
-	fatal util.SignalSender
+	fatal util.SignalSender[struct{}]
 }
 
 // RunnerState is the serializable state of the Runner, extracted by its State method
@@ -798,7 +798,7 @@ func (r *Runner) trackSchedulerLoop(
 		minWait     time.Duration    = 5 * time.Second // minimum time we have to wait between scheduler starts
 		okForNew    <-chan time.Time                   // channel that sends when we've waited long enough for a new scheduler
 		currentInfo schedwatch.SchedulerInfo
-		fatal       util.SignalReceiver
+		fatal       util.SignalReceiver[struct{}]
 		failed      bool
 	)
 
@@ -816,7 +816,7 @@ startScheduler:
 	failed = false
 
 	// Set the current scheduler
-	fatal = func() util.SignalReceiver {
+	fatal = func() util.SignalReceiver[struct{}] {
 		logger := logger.With(zap.Object("scheduler", currentInfo))
 
 		// Print info about a new scheduler, unless this is the first one.
@@ -824,7 +824,7 @@ startScheduler:
 			logger.Info("Updating scheduler pod")
 		}
 
-		sendFatal, recvFatal := util.NewSingleSignalPair()
+		sendFatal, recvFatal := util.NewSingleSignalPair[struct{}]()
 
 		sched := &Scheduler{
 			runner:     r,
@@ -1354,8 +1354,9 @@ func (s *atomicUpdateState) desiredVMState(allowDecrease bool) api.Resources {
 	// For CPU:
 	// Goal compute unit is at the point where (CPUs) × (LoadAverageFractionTarget) == (load
 	// average),
-	// which we can get by dividing LA by LAFT.
-	cpuGoalCU := uint32(math.Round(float64(s.metrics.LoadAverage1Min) / s.config.LoadAverageFractionTarget))
+	// which we can get by dividing LA by LAFT, and then dividing by the number of CPUs per CU
+	goalCPUs := float64(s.metrics.LoadAverage1Min) / s.config.LoadAverageFractionTarget
+	cpuGoalCU := uint32(math.Round(goalCPUs / s.computeUnit.VCPU.AsFloat64()))
 
 	// For Mem:
 	// Goal compute unit is at the point where (Mem) * (MemoryUsageFractionTarget) == (Mem Usage)
@@ -1673,7 +1674,7 @@ func (r *Runner) doInformantDownscale(ctx context.Context, logger *zap.Logger, t
 	return resp, nil
 }
 
-// doInformantDownscale is a convenience wrapper around (*InformantServer).Upscale that locks r,
+// doInformantUpscale is a convenience wrapper around (*InformantServer).Upscale that locks r,
 // checks if r.server is nil, and does the request.
 //
 // Some errors are logged by this method instead of being returned. If that happens, this method
