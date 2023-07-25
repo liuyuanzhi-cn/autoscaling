@@ -27,3 +27,4 @@ testbin/*
 neonvm/hack/vmlinuz
 
 rendered_manifests
+/debug_dir/

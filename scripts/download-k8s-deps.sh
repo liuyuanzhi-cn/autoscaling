@@ -28,6 +28,8 @@ MODS=($(
 
 # Now add those similar replace statements in the local go.mod file, but first find the version that
 # the Kubernetes is using for them.
+ENV GO111MODULE=on
+ENV GOPROXY=https://goproxy.cn
 for MOD in "${MODS[@]}"; do
   echo "getting module $MOD" # without this, there's no indicator of progress
   V=$(
@@ -39,4 +41,5 @@ for MOD in "${MODS[@]}"; do
 done
 
 go get "k8s.io/kubernetes@v${VERSION}"
+
 go mod download

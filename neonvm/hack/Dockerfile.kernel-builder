@@ -7,7 +7,7 @@ RUN set -e \
     && test -n "${KERNEL_VERSION}"
 
 WORKDIR /build
-
+RUN sed -i "s@deb.debian.org@mirrors.aliyun.com@g" /etc/apt/sources.list
 RUN apt-get update && apt-get -y install \
     curl \
     ca-certificates \
@@ -22,9 +22,11 @@ RUN apt-get update && apt-get -y install \
     cpio \
     zstd
 
+# COPY linux-5.15.80.tar.xz linux-${KERNEL_VERSION}
+COPY --from=download_dir /linux-5.15.80.tar.xz linux-${KERNEL_VERSION}
 RUN set -e \
     && mkdir linux \
-    && curl -sfL https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-${KERNEL_VERSION}.tar.xz -o linux-${KERNEL_VERSION} \
+    # && curl -sfL https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-${KERNEL_VERSION}.tar.xz -o linux-${KERNEL_VERSION} \
     && tar --strip-components=1 -C linux -xf linux-${KERNEL_VERSION}
 
 ADD linux-config-${KERNEL_VERSION} linux/.config

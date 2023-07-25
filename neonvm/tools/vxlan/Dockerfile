@@ -9,6 +9,8 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
+ENV GO111MODULE=on
+ENV GOPROXY=https://goproxy.cn
 RUN go mod download
 
 # Copy the go source
@@ -30,14 +32,16 @@ RUN apk add --no-cache \
     iproute2
 
 # add CNI plugins
+COPY debug_dir/download_files/cni-plugins-linux-amd64-v1.2.0.tgz cni.tgz
 RUN set -e \
-    && wget -q https://github.com/containernetworking/plugins/releases/download/v1.2.0/cni-plugins-linux-amd64-v1.2.0.tgz -O cni.tgz \
+    # && wget -q https://github.com/containernetworking/plugins/releases/download/v1.2.0/cni-plugins-linux-amd64-v1.2.0.tgz -O cni.tgz \
     && mkdir -p /opt/cni/bin \
     && tar -xzf cni.tgz -C /opt/cni/bin \
     && rm -f cni.tgz
 
+COPY debug_dir/download_files/grpc_health_probe-linux-amd64 /usr/bin/grpc_health_probe
 RUN set -e \
-    && wget -q https://github.com/grpc-ecosystem/grpc-health-probe/releases/latest/download/grpc_health_probe-linux-amd64 -O /usr/bin/grpc_health_probe \
+    # && wget -q https://github.com/grpc-ecosystem/grpc-health-probe/releases/latest/download/grpc_health_probe-linux-amd64 -O /usr/bin/grpc_health_probe \
     && chmod +x /usr/bin/grpc_health_probe
 
 COPY --from=builder /vxlan-controller /usr/bin/vxlan-controller

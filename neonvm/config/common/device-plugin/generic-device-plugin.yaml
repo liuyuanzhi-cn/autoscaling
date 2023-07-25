@@ -21,7 +21,7 @@ spec:
       - operator: "Exists"
         effect: "NoSchedule"
       containers:
-      - image: squat/generic-device-plugin
+      - image: squat/generic-device-plugin:latest
         args:
         - --log-level
         - info
@@ -42,6 +42,7 @@ spec:
               paths:
                 - path: /dev/vhost-net
         name: generic-device-plugin
+        imagePullPolicy: IfNotPresent
         resources:
           requests:
             cpu: 50m

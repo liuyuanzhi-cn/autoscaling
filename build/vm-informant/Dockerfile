@@ -5,6 +5,8 @@ RUN apk add gcc musl-dev # gcc (and therefore musl-dev) is required for cgo exte
 
 COPY go.mod go.mod
 COPY go.sum go.sum
+ENV GO111MODULE=on
+ENV GOPROXY=https://goproxy.cn
 RUN go mod download
 
 COPY neonvm/apis      neonvm/apis
