@@ -28,3 +28,8 @@ neonvm/hack/vmlinuz
 
 rendered_manifests
 /debug_dir/
+
+# tar.gz, tzr.xz
+*.tar.gz
+*.tar.xz
+/neonvm/hack/linux-5.15.80.tar.xz

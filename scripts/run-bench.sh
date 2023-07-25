@@ -72,7 +72,7 @@ pgbench -h '"$vm_ip"' -U postgres -c 10 -T 1000 -P 1 -f factorial.sql postgres
 # ANNOTATIONS="--annotations=k8s.v1.cni.cncf.io/networks=$NAD_NAME"
 ANNOTATIONS=""
 if [ -z "$NODE_NAME" ]; then
-    kubectl run "pgbench-$vm_name" --rm --image=alpine --restart=Never -it $ANNOTATIONS -- /bin/sh -c "$CMD"
+    kubectl run "pgbench-$vm_name" --rm --image=alpine:3.16 --image-pull-policy='IfNotPresent' --restart=Never -it $ANNOTATIONS -- /bin/sh -c "$CMD"
 else
     OVERRIDES='--overrides={
         "apiVersion": "v1",
@@ -81,6 +81,6 @@ else
         }
     }'
 
-    kubectl run "pgbench-$vm_name" --rm --image=alpine --restart=Never -it $ANNOTATIONS "$OVERRIDES" -- /bin/sh -c "$CMD"
+    kubectl run "pgbench-$vm_name" --rm --image=alpine:3.16 --image-pull-policy='IfNotPresent'  --restart=Never -it $ANNOTATIONS "$OVERRIDES" -- /bin/sh -c "$CMD"
 fi
 
