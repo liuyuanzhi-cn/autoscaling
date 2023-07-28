@@ -37,6 +37,7 @@ FROM debian:bullseye-slim as libcgroup-builder
 ENV LIBCGROUP_VERSION v2.0.3
 
 RUN set -exu \
+    && sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list \
 	&& apt update \
 	&& apt install --no-install-recommends -y \
 		git \
@@ -68,6 +69,7 @@ FROM quay.io/prometheuscommunity/postgres-exporter:v0.12.0 AS postgres-exporter
 #
 FROM debian:bullseye-slim AS pgbouncer
 RUN set -e \
+    && sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list \
 	&& apt-get update \
 	&& apt-get install -y \
 		curl \
@@ -125,6 +127,7 @@ RUN set -e \
 	&& /neonvm/bin/busybox --install -s /neonvm/bin
 
 # add udevd and agetty (with shared libs)
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN set -e \
 	&& apk add --no-cache --no-progress --quiet \
 		acpid \
@@ -188,6 +191,7 @@ RUN set -e \
     && qemu-img convert -f raw -O qcow2 -o cluster_size=2M,lazy_refcounts=on /disk.raw /disk.qcow2
 
 FROM alpine:3.16
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk add --no-cache --no-progress --quiet qemu-img
 COPY --from=builder /disk.qcow2 /
 `
@@ -554,6 +558,7 @@ func main() {
 		},
 		BuildArgs:      buildArgs,
 		SuppressOutput: *quiet,
+		NetworkMode:    "host",
 		NoCache:        false,
 		Context:        tarBuffer,
 		Dockerfile:     "Dockerfile",

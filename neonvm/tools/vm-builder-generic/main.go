@@ -36,6 +36,7 @@ RUN set -e \
 	&& /neonvm/bin/busybox --install -s /neonvm/bin
 
 # add udevd and agetty (with shared libs)
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN set -e \
 	&& apk add --no-cache --no-progress --quiet \
 		acpid \
@@ -68,6 +69,7 @@ RUN set -e \
 	&& sed -i 's/export PATH=.*/export PATH=\/neonvm\/bin/' /neonvm/bin/udhcpc.script
 
 # tools for qemu disk creation
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN set -e \
 	&& apk add --no-cache --no-progress --quiet \
 		qemu-img \
@@ -96,6 +98,7 @@ RUN set -e \
     && qemu-img convert -f raw -O qcow2 -o cluster_size=2M,lazy_refcounts=on /disk.raw /disk.qcow2
 
 FROM alpine:3.16
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN apk add --no-cache --no-progress --quiet qemu-img
 COPY --from=builder /disk.qcow2 /
 `

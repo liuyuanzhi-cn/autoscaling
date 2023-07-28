@@ -49,6 +49,7 @@ ADD vector.yaml /etc/vector.yaml
 RUN echo "::respawn:/bin/vector -c /etc/vector.yaml" >> /etc/inittab
 
 # postgresql stuff
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 RUN set -e \
 	&& apk add --no-cache \
 		su-exec \
