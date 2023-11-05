@@ -51,6 +51,7 @@ send the packets after migration.
 For more information, refer to [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Building and running
+> To check kvm compatibility with your system, run this command `egrep -c '(vmx|svm)' /proc/cpuinfo`, if the output you get is greater than 0, that means KVM is compatible with the system.
 
 Build NeonVM Linux kernel (it takes time, can be run only once)
 
